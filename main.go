@@ -32,12 +32,13 @@ type Request struct {
 }
 
 type Response struct {
-	Error  string `json:"error"`
-	Output string `json:"output"`
-	Sha    string `json:"sha"`
+	Errored bool   `json:"errored"`
+	Error   string `json:"error"`
+	Output  string `json:"output"`
+	Sha     string `json:"sha"`
 }
 
-func generate(ctx context.Context, base string, rd io.Reader) (*Response, error) {
+func generate(ctx context.Context, base, sqlbin string, rd io.Reader) (*Response, error) {
 	blob, err := ioutil.ReadAll(rd)
 	if err != nil {
 		return nil, err
@@ -67,16 +68,11 @@ func generate(ctx context.Context, base string, rd io.Reader) (*Response, error)
 		return nil, err
 	}
 
-	sqlcbin := os.Getenv("SQLC_BINARY")
-	if sqlcbin == "" {
-		sqlcbin = "sqlc"
-	}
-
 	cmd := exec.CommandContext(ctx, sqlcbin, "generate")
 	cmd.Dir = dir
 	stderr, err := cmd.CombinedOutput()
 	if err != nil {
-		return &Response{Error: string(stderr)}, nil
+		return &Response{Errored: true, Error: string(stderr)}, nil
 	}
 
 	dbgo, err := ioutil.ReadFile(out)
@@ -102,10 +98,10 @@ func main() {
 		// 	return
 		// }
 		defer r.Body.Close()
-		resp, err := generate(r.Context(), flag.Arg(0), r.Body)
+		resp, err := generate(r.Context(), flag.Arg(0), flag.Arg(1), r.Body)
 		if err != nil {
 			fmt.Println(err)
-			http.Error(w, `{"error": "500"}`, http.StatusInternalServerError)
+			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
