@@ -20,7 +20,8 @@ const confJSON = `{
     {
       "path": "db",
       "schema": "query.sql",
-      "queries": "query.sql"
+      "queries": "query.sql",
+	  "emit_single_file": true
     }
   ]
 }`
@@ -50,9 +51,7 @@ func generate(ctx context.Context, rd io.Reader) (*Response, error) {
 	dir := filepath.Join("app", sum)
 	conf := filepath.Join(dir, "sqlc.json")
 	query := filepath.Join(dir, "query.sql")
-	oldDB := filepath.Join(dir, "db", "db.go")
-	newDB := filepath.Join(dir, "db", "zzz.go")
-	out := filepath.Join(dir, "db")
+	out := filepath.Join(dir, "db", "db.go")
 
 	// Create the directory
 	os.MkdirAll(dir, 0777)
@@ -67,44 +66,19 @@ func generate(ctx context.Context, rd io.Reader) (*Response, error) {
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "sqlc", "generate")
+	cmd := exec.CommandContext(ctx, "sqlc-dev", "generate")
 	cmd.Dir = dir
 	stderr, err := cmd.CombinedOutput()
 	if err != nil {
 		return &Response{Error: string(stderr)}, nil
 	}
 
-	if err := os.Rename(oldDB, newDB); err != nil {
-		return nil, err
-	}
-
-	cmd = exec.CommandContext(ctx, "/Users/kyle/go/bin/bundle", "-prefix", "", ".")
-	cmd.Dir = out
-	output, err := cmd.Output()
+	dbgo, err := ioutil.ReadFile(out)
 	if err != nil {
 		return nil, err
 	}
 
-	// This doesn't appear to work with comments?
-	//
-	// fset := token.NewFileSet()
-	// pkgs, err := parser.ParseDir(fset, out, nil, parser.ParseComments)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// pkg, ok := pkgs["db"]
-	// if !ok {
-	// 	return nil, fmt.Errorf("could not find db package")
-	// }
-
-	// f := ast.MergePackageFiles(pkg, 0)
-	// var buf bytes.Buffer
-	// err = format.Node(&buf, fset, f)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	return &Response{Output: string(output), Sha: sum}, nil
+	return &Response{Output: string(dbgo), Sha: sum}, nil
 }
 
 func main() {
@@ -114,7 +88,7 @@ func main() {
 		http.ServeFile(w, r, "index.html")
 	})
 	http.HandleFunc("/generate", func(w http.ResponseWriter, r *http.Request) {
-		// check body size
+		// TODO: check body size
 		// if err != nil {
 		// 	http.Error(w, `{"error": "500"}`, http.StatusInternalServerError)
 		// 	return
