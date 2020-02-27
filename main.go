@@ -67,7 +67,12 @@ func generate(ctx context.Context, base string, rd io.Reader) (*Response, error)
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "sqlc", "generate")
+	sqlcbin := os.Getenv("SQLC_BINARY")
+	if sqlcbin == "" {
+		sqlcbin == "sqlc"
+	}
+
+	cmd := exec.CommandContext(ctx, sqlcbin, "generate")
 	cmd.Dir = dir
 	stderr, err := cmd.CombinedOutput()
 	if err != nil {
