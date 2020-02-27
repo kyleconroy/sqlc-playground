@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>CodeMirror: SQL Mode for CodeMirror</title>
+    <meta charset="utf-8"/>
+    <link rel="stylesheet" href="/static/normalize.css" />
+    <link rel="stylesheet" href="/static/codemirror.css" />
+    <script src="/static/codemirror.js"></script>
+    <script src="/static/sql.js"></script>
+    <script src="/static/go.js"></script>
+    <style>
+
+form {
+  overflow: scroll;
+  max-height: 100vh;
+}
+
+section {
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas: "sql code"
+}
+
+#query {
+  grid-area: sql;
+}
+
+#codegen {
+  grid-area: code;
+}
+
+.CodeMirror {
+  border: 1px solid #eee;
+  height: auto;
+}
+    </style>
+  </head>
+  <body>
+    <section>
+      <form id="query">
+        <textarea id="sql" name="sql">-- Example queries for sqlc
+CREATE TABLE authors (
+  id   BIGSERIAL PRIMARY KEY,
+  name text      NOT NULL,
+  bio  text
+);
+
+-- name: GetAuthor :one
+SELECT * FROM authors
+WHERE id = $1 LIMIT 1;
+
+-- name: ListAuthors :many
+SELECT * FROM authors
+ORDER BY name;
+
+-- name: CreateAuthor :one
+INSERT INTO authors (
+  name, bio
+) VALUES (
+  $1, $2
+)
+RETURNING *;
+
+-- name: DeleteAuthor :exec
+DELETE FROM authors
+WHERE id = $1;</textarea>
+      </form>
+      <form id="codegen">
+        <textarea id="go" name="go">package db
+
+import (
+	"context"
+	"database/sql"
+)
+
+type Author struct {
+	ID   int64
+	Name string
+	Bio  sql.NullString
+}
+
+const createAuthor = `-- name: CreateAuthor :one
+INSERT INTO authors (
+  name, bio
+) VALUES (
+  $1, $2
+)
+RETURNING id, name, bio
+`
+
+type CreateAuthorParams struct {
+	Name string
+	Bio  sql.NullString
+}
+
+func (q *Queries) CreateAuthor(ctx context.Context, arg CreateAuthorParams) (Author, error) {
+	row := q.db.QueryRowContext(ctx, createAuthor, arg.Name, arg.Bio)
+	var i Author
+	err := row.Scan(&i.ID, &i.Name, &i.Bio)
+	return i, err
+}
+
+const deleteAuthor = `-- name: DeleteAuthor :exec
+DELETE FROM authors
+WHERE id = $1
+`
+
+func (q *Queries) DeleteAuthor(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteAuthor, id)
+	return err
+}
+
+const getAuthor = `-- name: GetAuthor :one
+SELECT id, name, bio FROM authors
+WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetAuthor(ctx context.Context, id int64) (Author, error) {
+	row := q.db.QueryRowContext(ctx, getAuthor, id)
+	var i Author
+	err := row.Scan(&i.ID, &i.Name, &i.Bio)
+	return i, err
+}
+
+const listAuthors = `-- name: ListAuthors :many
+SELECT id, name, bio FROM authors
+ORDER BY name
+`
+
+func (q *Queries) ListAuthors(ctx context.Context) ([]Author, error) {
+	rows, err := q.db.QueryContext(ctx, listAuthors)
+	 if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Author
+	for rows.Next() {
+		var i Author
+		if err := rows.Scan(&i.ID, &i.Name, &i.Bio); err != nil {
+			 return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+type DBTX interface {
+	ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+	PrepareContext(context.Context, string) (*sql.Stmt, error)
+	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
+}
+
+func New(db DBTX) *Queries {
+	return &Queries{db: db}
+}
+
+type Queries struct {
+	db DBTX
+}
+
+func (q *Queries) WithTx(tx *sql.Tx) *Queries {
+	return &Queries{
+		db: tx,
+	}
+}</textarea>
+      </form>
+      <script>
+        window.onload = function() {
+          let sqlEditor = CodeMirror.fromTextArea(document.getElementById('sql'), {
+            mode: 'text/x-pgsql',
+            indentWithTabs: true,
+            smartIndent: true,
+            lineNumbers: true,
+            matchBrackets : true,
+            autofocus: true, 
+            viewportMargin: Infinity,
+          });
+          let genEditor = CodeMirror.fromTextArea(document.getElementById('go'), {
+            mode: "text/x-go",
+            smartIndent: true,
+            lineNumbers: true,
+            readOnly: true, 
+            viewportMargin: Infinity,
+          });
+          sqlEditor.on("change", function(instance, change) {
+            fetch('/generate', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                query: instance.getDoc().getValue(),
+              }),
+            })
+            .then((response) => {
+              return response.json();
+            })
+            .then((data) => {
+              if (data.output) {
+                genEditor.getDoc().setValue(data.output);
+              }
+              if (data.error) {
+                console.error('sqlc generate error:', data.error);
+              }
+            })
+            .catch((error) => {
+              console.error('Error:', error);
+            });
+          });
+        };
+      </script>
+    </section>
+  </body>
+</html>
