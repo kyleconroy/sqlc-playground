@@ -38,7 +38,7 @@ type Response struct {
 	Sha     string `json:"sha"`
 }
 
-func generate(ctx context.Context, base, sqlbin string, rd io.Reader) (*Response, error) {
+func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Response, error) {
 	blob, err := ioutil.ReadAll(rd)
 	if err != nil {
 		return nil, err
