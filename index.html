@@ -223,9 +223,9 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
                 genEditor.getDoc().setValue(data.output);
               }
               let el = document.getElementById('errors')
-              if (data.error) {
+              if (data.errored) {
                 el.classList.remove("hidden");
-                el.innerText = data.error;
+                el.innerText = data.error || "500: Internal Server Error";
               } else {
                 el.classList.add("hidden");
               }
