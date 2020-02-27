@@ -14,7 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	_ "github.com/kyleconroy/sqlc"
+	_ "github.com/kyleconroy/sqlc/cmd/sqlc"
 )
 
 const confJSON = `{

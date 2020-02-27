@@ -1,7 +1,7 @@
 module github.com/kyleconroy/sqlc-playground
 
 // +heroku goVersion go1.13
-// +heroku install ./... github.com/kyleconroy/sqlc/cmd/sqlc@master
+// +heroku install -mod vendor ./... github.com/kyleconroy/sqlc/cmd/sqlc
 
 go 1.13
 
