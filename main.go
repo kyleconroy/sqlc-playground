@@ -21,8 +21,7 @@ const confJSON = `{
     {
       "path": "db",
       "schema": "query.sql",
-      "queries": "query.sql",
-	  "emit_single_file": true
+      "queries": "query.sql"
     }
   ]
 }`
@@ -34,7 +33,6 @@ type Request struct {
 type Response struct {
 	Errored bool   `json:"errored"`
 	Error   string `json:"error"`
-	Output  string `json:"output"`
 	Sha     string `json:"sha"`
 }
 
@@ -53,7 +51,6 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	dir := filepath.Join(base, sum)
 	conf := filepath.Join(dir, "sqlc.json")
 	query := filepath.Join(dir, "query.sql")
-	out := filepath.Join(dir, "db", "db.go")
 
 	// Create the directory
 	os.MkdirAll(dir, 0777)
@@ -75,12 +72,7 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 		return &Response{Errored: true, Error: string(stderr)}, nil
 	}
 
-	dbgo, err := ioutil.ReadFile(out)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Response{Output: string(dbgo), Sha: sum}, nil
+	return &Response{Sha: sum}, nil
 }
 
 func main() {
