@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -36,7 +37,7 @@ type Response struct {
 	Sha    string `json:"sha"`
 }
 
-func generate(ctx context.Context, rd io.Reader) (*Response, error) {
+func generate(ctx context.Context, base string, rd io.Reader) (*Response, error) {
 	blob, err := ioutil.ReadAll(rd)
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func generate(ctx context.Context, rd io.Reader) (*Response, error) {
 	}
 
 	sum := fmt.Sprintf("%x", sha256.Sum256(blob))
-	dir := filepath.Join("app", sum)
+	dir := filepath.Join(base, sum)
 	conf := filepath.Join(dir, "sqlc.json")
 	query := filepath.Join(dir, "query.sql")
 	out := filepath.Join(dir, "db", "db.go")
@@ -82,6 +83,8 @@ func generate(ctx context.Context, rd io.Reader) (*Response, error) {
 }
 
 func main() {
+	flag.Parse()
+
 	fs := http.FileServer(http.Dir("static"))
 	http.Handle("/static/", http.StripPrefix("/static", fs))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +97,7 @@ func main() {
 		// 	return
 		// }
 		defer r.Body.Close()
-		resp, err := generate(r.Context(), r.Body)
+		resp, err := generate(r.Context(), flag.Arg(0), r.Body)
 		if err != nil {
 			fmt.Println(err)
 			http.Error(w, `{"error": "500"}`, http.StatusInternalServerError)
