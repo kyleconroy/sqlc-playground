@@ -69,7 +69,7 @@ func generate(ctx context.Context, base string, rd io.Reader) (*Response, error)
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, "sqlc-dev", "generate")
+	cmd := exec.CommandContext(ctx, "sqlc", "generate")
 	cmd.Dir = dir
 	stderr, err := cmd.CombinedOutput()
 	if err != nil {
