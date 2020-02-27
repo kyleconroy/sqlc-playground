@@ -69,7 +69,7 @@ func generate(ctx context.Context, base string, rd io.Reader) (*Response, error)
 
 	sqlcbin := os.Getenv("SQLC_BINARY")
 	if sqlcbin == "" {
-		sqlcbin == "sqlc"
+		sqlcbin = "sqlc"
 	}
 
 	cmd := exec.CommandContext(ctx, sqlcbin, "generate")
