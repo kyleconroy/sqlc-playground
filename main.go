@@ -107,5 +107,9 @@ func main() {
 		enc := json.NewEncoder(w)
 		enc.Encode(resp)
 	})
-	log.Fatal(http.ListenAndServe(":8086", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8086"
+	}
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
