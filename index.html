@@ -30,6 +30,18 @@ section {
   grid-area: code;
 }
 
+#errors {
+  background: red;
+  z-index: 1000;
+  grid-area: code;
+  height: 200px;
+  align-self: end;
+}
+
+#errors.hidden {
+  display: none;
+}
+
 .CodeMirror {
   border: 1px solid #eee;
   height: auto;
@@ -38,6 +50,7 @@ section {
   </head>
   <body>
     <section>
+      <pre id="errors" class="hidden"></pre>
       <form id="query">
         <textarea id="sql" name="sql">-- Example queries for sqlc
 CREATE TABLE authors (
@@ -209,8 +222,12 @@ func (q *Queries) WithTx(tx *sql.Tx) *Queries {
               if (data.output) {
                 genEditor.getDoc().setValue(data.output);
               }
+              let el = document.getElementById('errors')
               if (data.error) {
-                console.error('sqlc generate error:', data.error);
+                el.classList.remove("hidden");
+                el.innerText = data.error;
+              } else {
+                el.classList.add("hidden");
               }
             })
             .catch((error) => {
