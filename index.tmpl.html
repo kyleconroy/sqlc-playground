@@ -55,34 +55,9 @@ section {
     <section>
       <pre id="errors" class="hidden"></pre>
       <form id="query">
-        <textarea id="sql" name="sql">-- Example queries for sqlc
-CREATE TABLE authors (
-  id   BIGSERIAL PRIMARY KEY,
-  name text      NOT NULL,
-  bio  text
-);
-
--- name: GetAuthor :one
-SELECT * FROM authors
-WHERE id = $1 LIMIT 1;
-
--- name: ListAuthors :many
-SELECT * FROM authors
-ORDER BY name;
-
--- name: CreateAuthor :one
-INSERT INTO authors (
-  name, bio
-) VALUES (
-  $1, $2
-)
-RETURNING *;
-
--- name: DeleteAuthor :exec
-DELETE FROM authors
-WHERE id = $1;</textarea>
+        <textarea id="sql" name="sql">{{ .SQL }}</textarea>
       </form>
-      <iframe id="godoc" src="//{{.}}/pkg/sqlc.dev/example/db/">
+      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.SHA}}/db/">
       </iframe>
       </form>
       <script>
@@ -111,8 +86,8 @@ WHERE id = $1;</textarea>
             })
             .then((data) => {
               if (data.sha) {
-                let loc = "//{{.}}/pkg/sqlc.dev/"+data.sha+"/db/";
-                console.log(loc);
+                history.replaceState({}, '', "/"+data.sha)
+                let loc = "//{{.DocHost}}/pkg/sqlc.dev/"+data.sha+"/db/";
                 document.getElementById('godoc').src = loc;
               }
               let el = document.getElementById('errors')
