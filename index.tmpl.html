@@ -48,6 +48,8 @@ section {
 .CodeMirror {
   border: 1px solid #eee;
   height: auto;
+  /* font-size: 0.875rem;
+  line-height: 1.4; */
 }
     </style>
   </head>
@@ -71,36 +73,42 @@ section {
             autofocus: true, 
             viewportMargin: Infinity,
           });
+          let lastTimeout = 0;
           sqlEditor.on("change", function(instance, change) {
-            fetch('/generate', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                query: instance.getDoc().getValue(),
-              }),
-            })
-            .then((response) => {
-              return response.json();
-            })
-            .then((data) => {
-              if (data.sha) {
-                history.replaceState({}, '', "/"+data.sha)
-                let loc = "//{{.DocHost}}/pkg/sqlc.dev/"+data.sha+"/db/";
-                document.getElementById('godoc').src = loc;
-              }
-              let el = document.getElementById('errors')
-              if (data.errored) {
-                el.classList.remove("hidden");
-                el.innerText = data.error || "500: Internal Server Error";
-              } else {
-                el.classList.add("hidden");
-              }
-            })
-            .catch((error) => {
-              console.error('Error:', error);
-            });
+            if (lastTimeout > 0) {
+                clearTimeout(lastTimeout);
+            }
+            lastTimeout = setTimeout(function() {
+              fetch('/generate', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  query: instance.getDoc().getValue(),
+                }),
+              })
+              .then((response) => {
+                return response.json();
+              })
+              .then((data) => {
+                if (data.sha) {
+                  history.replaceState({}, '', "/"+data.sha)
+                  let loc = "//{{.DocHost}}/pkg/sqlc.dev/"+data.sha+"/db/";
+                  document.getElementById('godoc').src = loc;
+                }
+                let el = document.getElementById('errors')
+                if (data.errored) {
+                  el.classList.remove("hidden");
+                  el.innerText = data.error || "500: Internal Server Error";
+                } else {
+                  el.classList.add("hidden");
+                }
+              })
+              .catch((error) => {
+                console.error('Error:', error);
+              });
+            }, 250);
           });
         };
       </script>
