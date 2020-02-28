@@ -59,7 +59,7 @@ section {
       <form id="query">
         <textarea id="sql" name="sql">{{ .SQL }}</textarea>
       </form>
-      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.SHA}}/db/">
+      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.Pkg}}/db/">
       </iframe>
       </form>
       <script>
@@ -93,8 +93,8 @@ section {
               })
               .then((data) => {
                 if (data.sha) {
-                  history.replaceState({}, '', "/"+data.sha)
-                  let loc = "//{{.DocHost}}/pkg/sqlc.dev/"+data.sha+"/db/";
+                  history.replaceState({}, '', "/p/"+data.sha)
+                  let loc = "//{{.DocHost}}/pkg/sqlc.dev/p/"+data.sha+"/db/";
                   document.getElementById('godoc').src = loc;
                 }
                 let el = document.getElementById('errors')

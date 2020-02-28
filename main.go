@@ -18,9 +18,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/gorilla/mux"
+	"goji.io"
+	"goji.io/pat"
 )
 
 const confJSON = `{
@@ -33,6 +34,8 @@ const confJSON = `{
     }
   ]
 }`
+
+var tmpl *template.Template
 
 type Request struct {
 	Query string `json:"query"`
@@ -94,7 +97,27 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 type tmplCtx struct {
 	DocHost string
 	SQL     string
-	SHA     string
+	Pkg     string
+}
+
+func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkgPath string) {
+	filename := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "query.sql")
+	blob, err := ioutil.ReadFile(filename)
+	if err != nil {
+		http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	err = tmpl.Execute(w, tmplCtx{
+		DocHost: docHost,
+		SQL:     string(blob),
+		Pkg:     pkgPath,
+	})
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func main() {
@@ -119,12 +142,7 @@ func main() {
 		}
 	}()
 
-	exampleSQL, err := ioutil.ReadFile(filepath.Join(gopath, "src", "sqlc.dev", "example", "query.sql"))
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tmpl := template.Must(template.ParseFiles("index.tmpl.html"))
+	tmpl = template.Must(template.ParseFiles("index.tmpl.html"))
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8086"
@@ -138,53 +156,37 @@ func main() {
 		docHost = "play-godoc.sqlc.test:" + port
 	}
 
-	play := http.NewServeMux()
-	fs := http.FileServer(http.Dir("static"))
-	play.Handle("/static/", http.StripPrefix("/static", fs))
-	play.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		query := string(exampleSQL)
-		exsha := "example"
-
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path != "" {
-			sha, err := hex.DecodeString(path)
-			if err != nil {
-				http.Error(w, "Invalid SHA: hex decode failed", http.StatusBadRequest)
-				return
-			}
-			if len(sha) != 32 {
-				http.Error(w, fmt.Sprintf("Invalid SHA: length %d", len(sha)), http.StatusBadRequest)
-				return
-			}
-			contents, err := ioutil.ReadFile(filepath.Join(gopath, "src", "sqlc.dev", path, "query.sql"))
-			if err != nil {
-				http.Error(w, "Invalid SHA: not found", http.StatusNotFound)
-				return
-			}
-			query = string(contents)
-			exsha = path
-		}
-
-		w.Header().Set("Content-Type", "text/html")
-		err := tmpl.Execute(w, tmplCtx{
-			DocHost: docHost,
-			SQL:     query,
-			SHA:     exsha,
-		})
-
+	play := goji.NewMux()
+	play.HandleFunc(pat.Get("/p/:checksum"), func(w http.ResponseWriter, r *http.Request) {
+		path := pat.Param(r, "checksum")
+		sha, err := hex.DecodeString(path)
 		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			http.Error(w, "Invalid SHA: hex decode failed", http.StatusBadRequest)
 			return
 		}
+		if len(sha) != 32 {
+			http.Error(w, fmt.Sprintf("Invalid SHA: length %d", len(sha)), http.StatusBadRequest)
+			return
+		}
+		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("p", path))
 	})
-	play.HandleFunc("/generate", func(w http.ResponseWriter, r *http.Request) {
+
+	play.HandleFunc(pat.Get("/docs/:section"), func(w http.ResponseWriter, r *http.Request) {
+		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", pat.Param(r, "section")))
+	})
+
+	play.HandleFunc(pat.Get("/"), func(w http.ResponseWriter, r *http.Request) {
+		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", "authors"))
+	})
+
+	play.HandleFunc(pat.Post("/generate"), func(w http.ResponseWriter, r *http.Request) {
 		// TODO: check body size
 		// if err != nil {
 		// 	http.Error(w, `{"error": "500"}`, http.StatusInternalServerError)
 		// 	return
 		// }
 		defer r.Body.Close()
-		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev"), sqlcbin, r.Body)
+		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev", "p"), sqlcbin, r.Body)
 		if err != nil {
 			fmt.Println(err)
 			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
@@ -195,8 +197,13 @@ func main() {
 		enc.Encode(resp)
 	})
 
+	fs := http.FileServer(http.Dir("static"))
+	srv := http.NewServeMux()
+	srv.Handle("/static/", http.StripPrefix("/static", fs))
+	srv.Handle("/", play)
+
 	r := mux.NewRouter()
-	r.Host(trimPort(playHost)).Handler(play)
+	r.Host(trimPort(playHost)).Handler(srv)
 	r.Host(trimPort(docHost)).Handler(proxy)
 
 	log.Fatal(http.ListenAndServe(":"+port, r))
