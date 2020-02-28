@@ -6,13 +6,19 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/gorilla/mux"
 )
 
 const confJSON = `{
@@ -34,6 +40,14 @@ type Response struct {
 	Errored bool   `json:"errored"`
 	Error   string `json:"error"`
 	Sha     string `json:"sha"`
+}
+
+func trimPort(hostport string) string {
+	host, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		return hostport
+	}
+	return host
 }
 
 func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Response, error) {
@@ -78,19 +92,39 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 func main() {
 	flag.Parse()
 
+	gopath := flag.Arg(0)
+	sqlcbin := flag.Arg(1)
+
+	rpURL, _ := url.Parse("http://localhost:6061")
+	proxy := httputil.NewSingleHostReverseProxy(rpURL)
+
+	go func() {
+		cmd := exec.CommandContext(context.Background(), "godoc", "-http=:6061")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Env = append(os.Environ(),
+			"GOPATH="+gopath,
+		)
+		fmt.Println("Starting godoc on port :6061")
+		if err := cmd.Run(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	play := http.NewServeMux()
 	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/static/", http.StripPrefix("/static", fs))
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	play.Handle("/static/", http.StripPrefix("/static", fs))
+	play.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "index.html")
 	})
-	http.HandleFunc("/generate", func(w http.ResponseWriter, r *http.Request) {
+	play.HandleFunc("/generate", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: check body size
 		// if err != nil {
 		// 	http.Error(w, `{"error": "500"}`, http.StatusInternalServerError)
 		// 	return
 		// }
 		defer r.Body.Close()
-		resp, err := generate(r.Context(), flag.Arg(0), flag.Arg(1), r.Body)
+		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev"), sqlcbin, r.Body)
 		if err != nil {
 			fmt.Println(err)
 			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
@@ -104,5 +138,29 @@ func main() {
 	if port == "" {
 		port = "8086"
 	}
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+
+	playHost := os.Getenv("PLAYGROUND_HOST")
+	if playHost == "" {
+		playHost = "playground.sqlc.test:" + port
+	}
+	docHost := os.Getenv("GODOC_HOST")
+	if docHost == "" {
+		docHost = "play-godoc.sqlc.test:" + port
+	}
+
+	w, err := os.Create("index.html")
+	if err != nil {
+		log.Fatalf("create index.html: %s", err)
+	}
+
+	tmpl := template.Must(template.ParseFiles("index.tmpl.html"))
+	if err := tmpl.Execute(w, docHost); err != nil {
+		log.Fatalf("template execution: %s", err)
+	}
+
+	r := mux.NewRouter()
+	r.Host(trimPort(playHost)).Handler(play)
+	r.Host(trimPort(docHost)).Handler(proxy)
+
+	log.Fatal(http.ListenAndServe(":"+port, r))
 }
