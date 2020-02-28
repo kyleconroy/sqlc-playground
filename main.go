@@ -102,10 +102,9 @@ func main() {
 		cmd := exec.CommandContext(context.Background(), "godoc", "-http=:6061")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		cmd.Env = append(os.Environ(),
-			"GOMOD=",
-			"GOPATH="+gopath,
-		)
+		cmd.Env = []string{
+			"GOPATH=" + gopath,
+		}
 		fmt.Println("Starting godoc on port :6061 with GOPATH=" + gopath)
 		if err := cmd.Run(); err != nil {
 			log.Fatal(err)
