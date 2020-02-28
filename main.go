@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -89,6 +91,12 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	return &Response{Sha: sum}, nil
 }
 
+type tmplCtx struct {
+	DocHost string
+	SQL     string
+	SHA     string
+}
+
 func main() {
 	flag.Parse()
 
@@ -111,11 +119,63 @@ func main() {
 		}
 	}()
 
+	exampleSQL, err := ioutil.ReadFile(filepath.Join(gopath, "src", "sqlc.dev", "example", "query.sql"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tmpl := template.Must(template.ParseFiles("index.tmpl.html"))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8086"
+	}
+	playHost := os.Getenv("PLAYGROUND_HOST")
+	if playHost == "" {
+		playHost = "playground.sqlc.test:" + port
+	}
+	docHost := os.Getenv("GODOC_HOST")
+	if docHost == "" {
+		docHost = "play-godoc.sqlc.test:" + port
+	}
+
 	play := http.NewServeMux()
 	fs := http.FileServer(http.Dir("static"))
 	play.Handle("/static/", http.StripPrefix("/static", fs))
 	play.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "index.html")
+		query := string(exampleSQL)
+		exsha := "example"
+
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path != "" {
+			sha, err := hex.DecodeString(path)
+			if err != nil {
+				http.Error(w, "Invalid SHA: hex decode failed", http.StatusBadRequest)
+				return
+			}
+			if len(sha) != 32 {
+				http.Error(w, fmt.Sprintf("Invalid SHA: length %d", len(sha)), http.StatusBadRequest)
+				return
+			}
+			contents, err := ioutil.ReadFile(filepath.Join(gopath, "src", "sqlc.dev", path, "query.sql"))
+			if err != nil {
+				http.Error(w, "Invalid SHA: not found", http.StatusNotFound)
+				return
+			}
+			query = string(contents)
+			exsha = path
+		}
+
+		w.Header().Set("Content-Type", "text/html")
+		err := tmpl.Execute(w, tmplCtx{
+			DocHost: docHost,
+			SQL:     query,
+			SHA:     exsha,
+		})
+
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	})
 	play.HandleFunc("/generate", func(w http.ResponseWriter, r *http.Request) {
 		// TODO: check body size
@@ -134,29 +194,6 @@ func main() {
 		enc := json.NewEncoder(w)
 		enc.Encode(resp)
 	})
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8086"
-	}
-
-	playHost := os.Getenv("PLAYGROUND_HOST")
-	if playHost == "" {
-		playHost = "playground.sqlc.test:" + port
-	}
-	docHost := os.Getenv("GODOC_HOST")
-	if docHost == "" {
-		docHost = "play-godoc.sqlc.test:" + port
-	}
-
-	w, err := os.Create("index.html")
-	if err != nil {
-		log.Fatalf("create index.html: %s", err)
-	}
-
-	tmpl := template.Must(template.ParseFiles("index.tmpl.html"))
-	if err := tmpl.Execute(w, docHost); err != nil {
-		log.Fatalf("template execution: %s", err)
-	}
 
 	r := mux.NewRouter()
 	r.Host(trimPort(playHost)).Handler(play)
