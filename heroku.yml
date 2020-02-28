@@ -2,4 +2,4 @@ build:
   docker:
     web: Dockerfile
 run:
-  web: bin/sqlc-playground /app/go /app/sqlc-linux
+  web: sqlc-playground /app/go /app/sqlc-linux
