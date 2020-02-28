@@ -105,7 +105,7 @@ func main() {
 		cmd.Env = append(os.Environ(),
 			"GOPATH="+gopath,
 		)
-		fmt.Println("Starting godoc on port :6061")
+		fmt.Println("Starting godoc on port :6061 with GOPATH=" + gopath)
 		if err := cmd.Run(); err != nil {
 			log.Fatal(err)
 		}
