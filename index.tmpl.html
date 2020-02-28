@@ -108,7 +108,7 @@ WHERE id = $1;</textarea>
             })
             .then((data) => {
               if (data.sha) {
-                let loc = `//{{.}}/pkg/sqlc.dev/${data.sha}/db/`;
+                let loc = "//{{.}}/pkg/sqlc.dev/"+data.sha+"/db/";
                 console.log(loc);
                 document.getElementById('godoc').src = loc;
               }
