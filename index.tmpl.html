@@ -3,6 +3,7 @@
   <head>
     <title>sqlc - Playground</title>
     <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/normalize.css" />
     <link rel="stylesheet" href="/static/codemirror.css" />
     <script src="/static/codemirror.js"></script>
@@ -12,14 +13,15 @@
 
 form {
   overflow: scroll;
-  max-height: 100vh;
+  height: 50vh;
 }
 
 section {
   display: grid;
-  min-height: 100vh;
-  grid-template-columns: 1fr 1fr;
-  grid-template-areas: "sql code"
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
+  grid-template-areas: "sql"
+                       "code";
 }
 
 #query {
@@ -27,21 +29,29 @@ section {
 }
 
 #godoc {
+  height: 50vh;
   grid-area: code;
   width: 100%;
-  height: 100vh;
   border: 0;
 }
 
 #errors {
-  background: red;
-  z-index: 1000;
+  height: 50vh;
+  background: #ececec;
   grid-area: code;
-  height: 200px;
-  align-self: end;
 }
 
-#errors.hidden {
+#errors > pre {
+  margin: 14px;
+  font-size: 1.25em;
+  line-height: 1.4;
+}
+
+#stderr {
+  color: #900;
+}
+
+.hidden {
   display: none;
 }
 
@@ -51,16 +61,44 @@ section {
   font-size: 0.875rem;
   line-height: 1.4;
 }
+
+@media (min-width: 1200px) {
+  section {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    grid-template-areas: "sql code"
+  }
+
+  form {
+    height: 100vh;
+  }
+
+  #errors {
+    height: 100vh;
+  }
+
+  #godoc {
+    height: 100vh;
+  }
+}
+
+
     </style>
   </head>
   <body>
     <section>
-      <pre id="errors" class="hidden"></pre>
+      <div id="errors" class="{{if .Stderr}}{{else}}hidden{{end}}">
+        <pre>sqlc generate failed.</pre>
+        <pre id="stderr">{{ .Stderr }}</pre>
+      </div>
       <form id="query">
         <textarea id="sql" name="sql">{{ .SQL }}</textarea>
       </form>
-      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.Pkg}}/db/">
-      </iframe>
+      {{if .Stderr}}
+      <iframe id="godoc" class="hidden"></iframe>
+      {{else}}
+      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.Pkg}}/db/"></iframe>
+      {{end}}
       </form>
       <script>
         window.onload = function() {
@@ -92,23 +130,32 @@ section {
                 return response.json();
               })
               .then((data) => {
+                let godoc = document.getElementById('godoc');
+                let errors = document.getElementById('errors');
+                let stderr = document.getElementById('stderr');
+
                 if (data.sha) {
                   history.replaceState({}, '', "/p/"+data.sha)
-                  let loc = "//{{.DocHost}}/pkg/sqlc.dev/p/"+data.sha+"/db/";
-                  document.getElementById('godoc').src = loc;
                 }
-                let el = document.getElementById('errors')
+
                 if (data.errored) {
-                  el.classList.remove("hidden");
-                  el.innerText = data.error || "500: Internal Server Error";
+                  // GoDoc pane
+                  godoc.classList.add('hidden');
+                  // Error pane
+                  errors.classList.remove("hidden");
+                  stderr.innerText = data.error || "500: Internal Server Error";
                 } else {
-                  el.classList.add("hidden");
+                  // GoDoc pane
+                  godoc.classList.remove('hidden');
+                  godoc.src = "//{{.DocHost}}/pkg/sqlc.dev/p/"+data.sha+"/db/";
+                  // Error pane
+                  errors.classList.add("hidden");
                 }
               })
               .catch((error) => {
                 console.error('Error:', error);
               });
-            }, 250);
+            }, 200);
           });
         };
       </script>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -70,6 +71,7 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	dir := filepath.Join(base, sum)
 	conf := filepath.Join(dir, "sqlc.json")
 	query := filepath.Join(dir, "query.sql")
+	elog := filepath.Join(dir, "out.log")
 
 	// Create the directory
 	os.MkdirAll(dir, 0777)
@@ -84,11 +86,20 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 		return nil, err
 	}
 
-	cmd := exec.CommandContext(ctx, sqlcbin, "generate")
-	cmd.Dir = dir
-	stderr, err := cmd.CombinedOutput()
+	// Create log
+	f, err := os.Create(elog)
 	if err != nil {
-		return &Response{Errored: true, Error: string(stderr)}, nil
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	mwriter := io.MultiWriter(f, &buf)
+	cmd := exec.CommandContext(ctx, sqlcbin, "generate")
+	cmd.Stderr = mwriter
+	cmd.Stdout = mwriter
+	cmd.Dir = dir
+	if err := cmd.Run(); err != nil {
+		return &Response{Sha: sum, Errored: true, Error: buf.String()}, nil
 	}
 
 	return &Response{Sha: sum}, nil
@@ -97,6 +108,7 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 type tmplCtx struct {
 	DocHost string
 	SQL     string
+	Stderr  string
 	Pkg     string
 }
 
@@ -108,13 +120,24 @@ func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkg
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/html")
-	err = tmpl.Execute(w, tmplCtx{
+	tctx := tmplCtx{
 		DocHost: docHost,
 		SQL:     string(blob),
 		Pkg:     pkgPath,
-	})
-	if err != nil {
+	}
+
+	elog := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "out.log")
+	if _, err := os.Stat(elog); err == nil {
+		blob, err := ioutil.ReadFile(elog)
+		if err != nil {
+			http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
+			return
+		}
+		tctx.Stderr = string(blob)
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	if err = tmpl.Execute(w, tctx); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
