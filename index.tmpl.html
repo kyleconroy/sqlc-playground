@@ -6,81 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="stylesheet" href="/static/normalize.css" />
     <link rel="stylesheet" href="/static/codemirror.css" />
-    <style>
-
-form {
-  overflow: scroll;
-  height: 50vh;
-}
-
-section {
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr 1fr;
-  grid-template-areas: "sql"
-                       "code";
-}
-
-#query {
-  grid-area: sql;
-}
-
-#godoc {
-  height: 50vh;
-  grid-area: code;
-  width: 100%;
-  border: 0;
-}
-
-#errors {
-  height: 50vh;
-  background: #ececec;
-  grid-area: code;
-}
-
-#errors > pre {
-  margin: 14px;
-  font-size: 1.25em;
-  line-height: 1.4;
-}
-
-#stderr {
-  color: #900;
-}
-
-.hidden {
-  display: none;
-}
-
-.CodeMirror {
-  border: 1px solid #eee;
-  height: auto;
-  font-size: 0.875rem;
-  line-height: 1.4;
-}
-
-@media (min-width: 1200px) {
-  section {
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr;
-    grid-template-areas: "sql code"
-  }
-
-  form {
-    height: 100vh;
-  }
-
-  #errors {
-    height: 100vh;
-  }
-
-  #godoc {
-    height: 100vh;
-  }
-}
-
-
-    </style>
+    <link rel="stylesheet" href="/static/app.css" />
   </head>
   <body>
     <section>
@@ -88,19 +14,24 @@ section {
         <pre>sqlc generate failed.</pre>
         <pre id="stderr">{{ .Stderr }}</pre>
       </div>
-      <form id="query">
+      <ul class="tabs" id="sqlt">
+        <a href="#">query.sql</a>
+      </ul>
+      <div id="query">
         <textarea id="sql" name="sql">{{ .SQL }}</textarea>
-      </form>
-      {{if .Stderr}}
-      <iframe id="godoc" class="hidden"></iframe>
-      {{else}}
-      <iframe id="godoc" src="//{{.DocHost}}/pkg/sqlc.dev/{{.Pkg}}/db/"></iframe>
-      {{end}}
-      </form>
-      <script type="text/javasrcipt" src="/static/codemirror.js"></script>
-      <script type="text/javasrcipt" src="/static/sql.js"></script>
-      <script type="text/javasrcipt" src="/static/go.js"></script>
-      <script type="text/javasrcipt" src="/static/app.js"></script>
+      </div>
+      <ul class="tabs" id="codet">
+        <a href="#">query.sql.go</a>
+        <a href="#">db.go</a>
+        <a href="#">models.go</a>
+      </ul>
+      <div id="godoc">
+        <textarea id="go" name="go"></textarea>
+      </div>
     </section>
+    <script type="text/javascript" src="/static/codemirror.js"></script>
+    <script type="text/javascript" src="/static/sql.js"></script>
+    <script type="text/javascript" src="/static/go.js"></script>
+    <script type="text/javascript" src="/static/app.js"></script>
   </body>
 </html>

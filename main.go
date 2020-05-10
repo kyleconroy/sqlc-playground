@@ -42,10 +42,16 @@ type Request struct {
 	Query string `json:"query"`
 }
 
+type File struct {
+	Name     string `json:"name"`
+	Contents string `json:"contents"`
+}
+
 type Response struct {
 	Errored bool   `json:"errored"`
 	Error   string `json:"error"`
 	Sha     string `json:"sha"`
+	Files   []File `json:"files"`
 }
 
 func trimPort(hostport string) string {
@@ -102,7 +108,25 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 		return &Response{Sha: sum, Errored: true, Error: buf.String()}, nil
 	}
 
-	return &Response{Sha: sum}, nil
+	resp := Response{Sha: sum}
+
+	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		contents, err := ioutil.ReadFile(filepath.Join(dir, "db", file.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", file.Name(), err)
+		}
+		resp.Files = append(resp.Files, File{
+			Name:     filepath.Join("db", file.Name()),
+			Contents: string(contents),
+		})
+	}
+
+	return &resp, nil
 }
 
 type tmplCtx struct {
@@ -113,16 +137,16 @@ type tmplCtx struct {
 }
 
 func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkgPath string) {
-	filename := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "query.sql")
-	blob, err := ioutil.ReadFile(filename)
-	if err != nil {
-		http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
-		return
-	}
+	// filename := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "query.sql")
+	// blob, err := ioutil.ReadFile(filename)
+	// if err != nil {
+	// 	http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
+	// 	return
+	// }
 
 	tctx := tmplCtx{
 		DocHost: docHost,
-		SQL:     string(blob),
+		SQL:     "SELECT 1;", // string(blob),
 		Pkg:     pkgPath,
 	}
 
@@ -137,7 +161,7 @@ func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkg
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if err = tmpl.Execute(w, tctx); err != nil {
+	if err := tmpl.Execute(w, tctx); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -149,10 +173,18 @@ func main() {
 	gopath := flag.Arg(0)
 	sqlcbin := flag.Arg(1)
 
+	if gopath == "" {
+		log.Fatalf("arg: gopath is empty")
+	}
+	if sqlcbin == "" {
+		log.Fatalf("arg: sqlcbin is empty")
+	}
+
 	rpURL, _ := url.Parse("http://localhost:6061")
 	proxy := httputil.NewSingleHostReverseProxy(rpURL)
 
 	go func() {
+		return
 		cmd := exec.CommandContext(context.Background(), "godoc", "-http=:6061")
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -220,7 +252,7 @@ func main() {
 		enc.Encode(resp)
 	})
 
-	fs := http.FileServer(http.Dir("static"))
+	fs := http.FileServer(http.Dir(filepath.Join("static")))
 	srv := http.NewServeMux()
 	srv.Handle("/static/", http.StripPrefix("/static", fs))
 	srv.Handle("/", play)
@@ -229,5 +261,6 @@ func main() {
 	r.Host(trimPort(playHost)).Handler(srv)
 	r.Host(trimPort(docHost)).Handler(proxy)
 
+	log.Println("starting...")
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }

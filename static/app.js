@@ -8,6 +8,18 @@ window.onload = function() {
     autofocus: true, 
     viewportMargin: Infinity,
   });
+
+  let codeView = CodeMirror.fromTextArea(document.getElementById('go'), {
+    mode: 'text/x-go',
+    indentWithTabs: true,
+    smartIndent: true,
+    lineNumbers: true,
+    matchBrackets : true,
+    autofocus: false, 
+    readOnly: true,
+    viewportMargin: Infinity,
+  });
+
   let lastTimeout = 0;
   sqlEditor.on("change", function(instance, change) {
     if (lastTimeout > 0) {
@@ -31,9 +43,9 @@ window.onload = function() {
         let errors = document.getElementById('errors');
         let stderr = document.getElementById('stderr');
 
-        if (data.sha) {
-          history.replaceState({}, '', "/p/"+data.sha)
-        }
+        // if (data.sha) {
+        //   history.replaceState({}, '', "/p/"+data.sha)
+        // }
 
         if (data.errored) {
           // GoDoc pane
@@ -44,7 +56,7 @@ window.onload = function() {
         } else {
           // GoDoc pane
           godoc.classList.remove('hidden');
-          godoc.src = "//{{.DocHost}}/pkg/sqlc.dev/p/"+data.sha+"/db/";
+          codeView.getDoc().setValue(data.files[0].contents);
           // Error pane
           errors.classList.add("hidden");
         }
