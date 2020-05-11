@@ -1,6 +1,8 @@
 module github.com/kyleconroy/sqlc-playground
 
-go 1.13
+// +heroku goVersion go1.14
+
+go 1.14
 
 require (
 	github.com/gorilla/mux v1.7.4

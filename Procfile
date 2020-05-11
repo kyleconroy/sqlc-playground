@@ -1,0 +1,1 @@
+web: sqlc-playground
