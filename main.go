@@ -14,8 +14,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -62,6 +60,35 @@ func trimPort(hostport string) string {
 	return host
 }
 
+func buildResponse(dir string) (*Response, error) {
+	elog := filepath.Join(dir, "out.log")
+	if _, err := os.Stat(elog); err == nil {
+		blob, err := ioutil.ReadFile(elog)
+		if err != nil {
+			return nil, err
+		}
+		if len(blob) > 0 {
+			return &Response{Errored: true, Error: string(blob)}, nil
+		}
+	}
+	resp := Response{}
+	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		contents, err := ioutil.ReadFile(filepath.Join(dir, "db", file.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", file.Name(), err)
+		}
+		resp.Files = append(resp.Files, File{
+			Name:     filepath.Join("db", file.Name()),
+			Contents: string(contents),
+		})
+	}
+	return &resp, nil
+}
+
 func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Response, error) {
 	blob, err := ioutil.ReadAll(rd)
 	if err != nil {
@@ -104,60 +131,51 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	cmd.Stderr = mwriter
 	cmd.Stdout = mwriter
 	cmd.Dir = dir
-	if err := cmd.Run(); err != nil {
-		return &Response{Sha: sum, Errored: true, Error: buf.String()}, nil
-	}
+	cmd.Run()
 
-	resp := Response{Sha: sum}
-
-	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
+	resp, err := buildResponse(dir)
 	if err != nil {
 		return nil, err
 	}
-
-	for _, file := range files {
-		contents, err := ioutil.ReadFile(filepath.Join(dir, "db", file.Name()))
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", file.Name(), err)
-		}
-		resp.Files = append(resp.Files, File{
-			Name:     filepath.Join("db", file.Name()),
-			Contents: string(contents),
-		})
-	}
-
-	return &resp, nil
+	resp.Sha = sum
+	return resp, nil
 }
 
 type tmplCtx struct {
-	DocHost string
-	SQL     string
-	Stderr  string
-	Pkg     string
+	DocHost  string
+	SQL      string
+	Response template.JS
+	Stderr   string
+	Pkg      string
 }
 
-func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkgPath string) {
-	// filename := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "query.sql")
-	// blob, err := ioutil.ReadFile(filename)
-	// if err != nil {
-	// 	http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
-	// 	return
-	// }
-
-	tctx := tmplCtx{
-		DocHost: docHost,
-		SQL:     "SELECT 1;", // string(blob),
-		Pkg:     pkgPath,
+func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath string) {
+	dir := filepath.Join(gopath, "src", "sqlc.dev", pkgPath)
+	filename := filepath.Join(dir, "query.sql")
+	blob, err := ioutil.ReadFile(filename)
+	if err != nil {
+		http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
+		return
 	}
 
-	elog := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "out.log")
-	if _, err := os.Stat(elog); err == nil {
-		blob, err := ioutil.ReadFile(elog)
-		if err != nil {
-			http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
-			return
-		}
-		tctx.Stderr = string(blob)
+	resp, err := buildResponse(dir)
+	if err != nil {
+		http.Error(w, "Internal server error: buildResponse", http.StatusInternalServerError)
+		return
+	}
+
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+	}
+
+	var out bytes.Buffer
+	json.HTMLEscape(&out, payload)
+
+	tctx := tmplCtx{
+		SQL:      string(blob),
+		Pkg:      pkgPath,
+		Response: template.JS(out.String()),
 	}
 
 	w.Header().Set("Content-Type", "text/html")
@@ -180,23 +198,6 @@ func main() {
 		log.Fatalf("arg: sqlcbin is empty")
 	}
 
-	rpURL, _ := url.Parse("http://localhost:6061")
-	proxy := httputil.NewSingleHostReverseProxy(rpURL)
-
-	go func() {
-		return
-		cmd := exec.CommandContext(context.Background(), "godoc", "-http=:6061")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = []string{
-			"GOPATH=" + gopath,
-		}
-		fmt.Println("Starting godoc on port :6061 with GOPATH=" + gopath)
-		if err := cmd.Run(); err != nil {
-			log.Fatal(err)
-		}
-	}()
-
 	tmpl = template.Must(template.ParseFiles("index.tmpl.html"))
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -205,10 +206,6 @@ func main() {
 	playHost := os.Getenv("PLAYGROUND_HOST")
 	if playHost == "" {
 		playHost = "playground.sqlc.test:" + port
-	}
-	docHost := os.Getenv("GODOC_HOST")
-	if docHost == "" {
-		docHost = "play-godoc.sqlc.test:" + port
 	}
 
 	play := goji.NewMux()
@@ -223,15 +220,15 @@ func main() {
 			http.Error(w, fmt.Sprintf("Invalid SHA: length %d", len(sha)), http.StatusBadRequest)
 			return
 		}
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("p", path))
+		handlePlay(r.Context(), w, gopath, filepath.Join("p", path))
 	})
 
 	play.HandleFunc(pat.Get("/docs/:section"), func(w http.ResponseWriter, r *http.Request) {
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", pat.Param(r, "section")))
+		handlePlay(r.Context(), w, gopath, filepath.Join("docs", pat.Param(r, "section")))
 	})
 
 	play.HandleFunc(pat.Get("/"), func(w http.ResponseWriter, r *http.Request) {
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", "authors"))
+		handlePlay(r.Context(), w, gopath, filepath.Join("docs", "authors"))
 	})
 
 	play.HandleFunc(pat.Post("/generate"), func(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +240,7 @@ func main() {
 		defer r.Body.Close()
 		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev", "p"), sqlcbin, r.Body)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("error", err)
 			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -259,7 +256,6 @@ func main() {
 
 	r := mux.NewRouter()
 	r.Host(trimPort(playHost)).Handler(srv)
-	r.Host(trimPort(docHost)).Handler(proxy)
 
 	log.Println("starting...")
 	log.Fatal(http.ListenAndServe(":"+port, r))

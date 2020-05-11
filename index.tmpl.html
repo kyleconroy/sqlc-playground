@@ -15,20 +15,18 @@
         <pre id="stderr">{{ .Stderr }}</pre>
       </div>
       <ul class="tabs" id="sqlt">
-        <a href="#">query.sql</a>
+        <li><a href="#">query.sql</a></li>
       </ul>
       <div id="query">
         <textarea id="sql" name="sql">{{ .SQL }}</textarea>
       </div>
       <ul class="tabs" id="codet">
-        <a href="#">query.sql.go</a>
-        <a href="#">db.go</a>
-        <a href="#">models.go</a>
       </ul>
       <div id="godoc">
         <textarea id="go" name="go"></textarea>
       </div>
     </section>
+    <script type="application/json" id="response">{{.Response}}</script>
     <script type="text/javascript" src="/static/codemirror.js"></script>
     <script type="text/javascript" src="/static/sql.js"></script>
     <script type="text/javascript" src="/static/go.js"></script>
