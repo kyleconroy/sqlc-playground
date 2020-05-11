@@ -82,8 +82,16 @@ ul.tabs li a.selected {
   display: none;
 }
 
+#query {
+  border-top: 1px solid #eee;
+  border-right: 1px solid #eee;
+}
+
+#godoc {
+  border-top: 1px solid #eee;
+}
+
 .CodeMirror {
-  border: 1px solid #eee;
   height: auto;
   font-size: 0.875rem;
   line-height: 1.4;
@@ -110,3 +118,24 @@ ul.tabs li a.selected {
   }
 }
 
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: rgb(20, 20, 20);
+    color: white;
+  }
+  #query {
+    background-color: rgb(32, 39, 43);
+    border-top: 1px solid black;
+    border-right: 1px solid black;
+  }
+  #godoc {
+    background-color: rgb(32, 39, 43);
+    border-top: 1px solid black;
+  }
+  ul.tabs li {
+    background-color: black;
+  }
+  ul.tabs li a {
+    color: white;
+  }
+}

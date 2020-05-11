@@ -1,4 +1,10 @@
 window.onload = function() {
+  let media = window.matchMedia('(prefers-color-scheme: dark)');
+  let theme = "github-light";
+  if (media.matches) {
+    theme = "github-dark";
+  }
+
   let sqlEditor = CodeMirror.fromTextArea(document.getElementById('sql'), {
     mode: 'text/x-pgsql',
     indentWithTabs: true,
@@ -6,6 +12,7 @@ window.onload = function() {
     lineNumbers: true,
     matchBrackets : true,
     autofocus: true, 
+    theme: theme,
     viewportMargin: Infinity,
   });
 
@@ -15,8 +22,8 @@ window.onload = function() {
     smartIndent: true,
     lineNumbers: true,
     matchBrackets : true,
-    autofocus: false, 
     readOnly: true,
+    theme: theme,
     viewportMargin: Infinity,
   });
 
