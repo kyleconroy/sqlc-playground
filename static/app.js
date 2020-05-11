@@ -118,7 +118,7 @@ window.onload = function() {
       .catch((error) => {
         console.error('Error:', error);
       });
-    }, 200);
+    }, 500);
   });
 
   let response = document.getElementById('response');
