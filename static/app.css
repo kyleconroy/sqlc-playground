@@ -1,3 +1,7 @@
+body {
+  background-color: rgb(221, 221, 221);
+}
+
 section {
   display: grid;
   grid-template-columns: 1fr;
@@ -18,10 +22,14 @@ ul {
   grid-area: sql-tabs;
 }
 
-#query {
-  grid-area: sql;
+#query, #godoc {
+  background-color: white;
   overflow: scroll;
   height: 50vh;
+}
+
+#query {
+  grid-area: sql;
 }
 
 #codet {
@@ -35,31 +43,23 @@ ul.tabs {
 
 ul.tabs li {
   display: inline-block;
-  margin-right: 5px;
+  margin-left: 5px;
 }
 
 ul.tabs li a {
   display: block;
   padding: 10px;
-  border-top: 1px;
-  border-right: 1px;
-  border-left: 1px;
-  border-bottom: 0px;
-  border-color: black;
-  border-style: solid;
+  background: #aaa;
   border-top-left-radius: 3px;
   border-top-right-radius: 3px;
 }
 
 ul.tabs li a.selected {
-  background: grey;
+  background: white;
 }
-
 
 #godoc {
   grid-area: code;
-  overflow: scroll;
-  height: 50vh;
 }
 
 #errors {
@@ -82,19 +82,8 @@ ul.tabs li a.selected {
   display: none;
 }
 
-#query {
-  border-top: 1px solid #eee;
-  border-right: 1px solid #eee;
-}
-
-#godoc {
-  border-top: 1px solid #eee;
-}
-
 .CodeMirror {
   height: auto;
-  font-size: 0.875rem;
-  line-height: 1.4;
 }
 
 @media (min-width: 1200px) {
@@ -123,16 +112,15 @@ ul.tabs li a.selected {
     background-color: rgb(20, 20, 20);
     color: white;
   }
-  #query {
+  ul.tabs li a.selected {
     background-color: rgb(32, 39, 43);
-    border-top: 1px solid black;
-    border-right: 1px solid black;
   }
-  #godoc {
+  #query, #godoc {
     background-color: rgb(32, 39, 43);
-    border-top: 1px solid black;
+    scrollbar-color: #6e7880 rgb(49, 57, 62);
   }
-  ul.tabs li {
+  }
+  ul.tabs li a {
     background-color: black;
   }
   ul.tabs li a {
