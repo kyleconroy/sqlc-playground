@@ -115,6 +115,12 @@ ul.tabs li a.selected {
   ul.tabs li a.selected {
     background-color: rgb(32, 39, 43);
   }
+  #errors {
+    background: rgb(61, 67, 70);
+  }
+  #stderr {
+    color: black;
+  }
   .pane {
     background-color: rgb(32, 39, 43);
     scrollbar-color: #6e7880 rgb(49, 57, 62);
