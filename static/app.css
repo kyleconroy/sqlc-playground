@@ -1,0 +1,112 @@
+section {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 50px 1fr 50px 1fr;
+  grid-template-areas: "sql-tabs"
+                       "sql"
+                       "code-tabs"
+                       "code";
+}
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
+#sqlt {
+  grid-area: sql-tabs;
+}
+
+#query {
+  grid-area: sql;
+  overflow: scroll;
+  height: 50vh;
+}
+
+#codet {
+  grid-area: code-tabs;
+}
+
+ul.tabs {
+  display: flex;
+  align-items: flex-end;
+}
+
+ul.tabs li {
+  display: inline-block;
+  margin-right: 5px;
+}
+
+ul.tabs li a {
+  display: block;
+  padding: 10px;
+  border-top: 1px;
+  border-right: 1px;
+  border-left: 1px;
+  border-bottom: 0px;
+  border-color: black;
+  border-style: solid;
+  border-top-left-radius: 3px;
+  border-top-right-radius: 3px;
+}
+
+ul.tabs li a.selected {
+  background: grey;
+}
+
+
+#godoc {
+  grid-area: code;
+  overflow: scroll;
+  height: 50vh;
+}
+
+#errors {
+  height: 50vh;
+  background: #ececec;
+  grid-area: code;
+}
+
+#errors > pre {
+  margin: 14px;
+  font-size: 1.25em;
+  line-height: 1.4;
+}
+
+#stderr {
+  color: #900;
+}
+
+.hidden {
+  display: none;
+}
+
+.CodeMirror {
+  border: 1px solid #eee;
+  height: auto;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+@media (min-width: 1200px) {
+  section {
+    grid-template-columns: 50vw 50vw;
+    grid-template-rows: 50px calc(100vh - 50px);
+    grid-template-areas: "sql-tabs code-tabs"
+                         "sql code";
+  }
+
+  #query {
+    height: 100%;
+  }
+
+  #errors {
+    height: 100%;
+  }
+
+  #godoc {
+    height: 100%;
+  }
+}
+
