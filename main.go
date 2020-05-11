@@ -14,8 +14,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -42,10 +40,16 @@ type Request struct {
 	Query string `json:"query"`
 }
 
+type File struct {
+	Name     string `json:"name"`
+	Contents string `json:"contents"`
+}
+
 type Response struct {
 	Errored bool   `json:"errored"`
 	Error   string `json:"error"`
 	Sha     string `json:"sha"`
+	Files   []File `json:"files"`
 }
 
 func trimPort(hostport string) string {
@@ -54,6 +58,35 @@ func trimPort(hostport string) string {
 		return hostport
 	}
 	return host
+}
+
+func buildResponse(dir string) (*Response, error) {
+	elog := filepath.Join(dir, "out.log")
+	if _, err := os.Stat(elog); err == nil {
+		blob, err := ioutil.ReadFile(elog)
+		if err != nil {
+			return nil, err
+		}
+		if len(blob) > 0 {
+			return &Response{Errored: true, Error: string(blob)}, nil
+		}
+	}
+	resp := Response{}
+	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		contents, err := ioutil.ReadFile(filepath.Join(dir, "db", file.Name()))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", file.Name(), err)
+		}
+		resp.Files = append(resp.Files, File{
+			Name:     filepath.Join("db", file.Name()),
+			Contents: string(contents),
+		})
+	}
+	return &resp, nil
 }
 
 func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Response, error) {
@@ -98,46 +131,55 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	cmd.Stderr = mwriter
 	cmd.Stdout = mwriter
 	cmd.Dir = dir
-	if err := cmd.Run(); err != nil {
-		return &Response{Sha: sum, Errored: true, Error: buf.String()}, nil
-	}
+	cmd.Run()
 
-	return &Response{Sha: sum}, nil
+	resp, err := buildResponse(dir)
+	if err != nil {
+		return nil, err
+	}
+	resp.Sha = sum
+	return resp, nil
 }
 
 type tmplCtx struct {
-	DocHost string
-	SQL     string
-	Stderr  string
-	Pkg     string
+	DocHost  string
+	SQL      string
+	Response template.JS
+	Stderr   string
+	Pkg      string
 }
 
-func handlePlay(ctx context.Context, w http.ResponseWriter, docHost, gopath, pkgPath string) {
-	filename := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "query.sql")
+func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath string) {
+	dir := filepath.Join(gopath, "src", "sqlc.dev", pkgPath)
+	filename := filepath.Join(dir, "query.sql")
 	blob, err := ioutil.ReadFile(filename)
 	if err != nil {
 		http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
 		return
 	}
 
-	tctx := tmplCtx{
-		DocHost: docHost,
-		SQL:     string(blob),
-		Pkg:     pkgPath,
+	resp, err := buildResponse(dir)
+	if err != nil {
+		http.Error(w, "Internal server error: buildResponse", http.StatusInternalServerError)
+		return
 	}
 
-	elog := filepath.Join(gopath, "src", "sqlc.dev", pkgPath, "out.log")
-	if _, err := os.Stat(elog); err == nil {
-		blob, err := ioutil.ReadFile(elog)
-		if err != nil {
-			http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
-			return
-		}
-		tctx.Stderr = string(blob)
+	payload, err := json.Marshal(resp)
+	if err != nil {
+		http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+	}
+
+	var out bytes.Buffer
+	json.HTMLEscape(&out, payload)
+
+	tctx := tmplCtx{
+		SQL:      string(blob),
+		Pkg:      pkgPath,
+		Response: template.JS(out.String()),
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	if err = tmpl.Execute(w, tctx); err != nil {
+	if err := tmpl.Execute(w, tctx); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -149,21 +191,12 @@ func main() {
 	gopath := flag.Arg(0)
 	sqlcbin := flag.Arg(1)
 
-	rpURL, _ := url.Parse("http://localhost:6061")
-	proxy := httputil.NewSingleHostReverseProxy(rpURL)
-
-	go func() {
-		cmd := exec.CommandContext(context.Background(), "godoc", "-http=:6061")
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.Env = []string{
-			"GOPATH=" + gopath,
-		}
-		fmt.Println("Starting godoc on port :6061 with GOPATH=" + gopath)
-		if err := cmd.Run(); err != nil {
-			log.Fatal(err)
-		}
-	}()
+	if gopath == "" {
+		log.Fatalf("arg: gopath is empty")
+	}
+	if sqlcbin == "" {
+		log.Fatalf("arg: sqlcbin is empty")
+	}
 
 	tmpl = template.Must(template.ParseFiles("index.tmpl.html"))
 	port := os.Getenv("PORT")
@@ -173,10 +206,6 @@ func main() {
 	playHost := os.Getenv("PLAYGROUND_HOST")
 	if playHost == "" {
 		playHost = "playground.sqlc.test:" + port
-	}
-	docHost := os.Getenv("GODOC_HOST")
-	if docHost == "" {
-		docHost = "play-godoc.sqlc.test:" + port
 	}
 
 	play := goji.NewMux()
@@ -191,15 +220,15 @@ func main() {
 			http.Error(w, fmt.Sprintf("Invalid SHA: length %d", len(sha)), http.StatusBadRequest)
 			return
 		}
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("p", path))
+		handlePlay(r.Context(), w, gopath, filepath.Join("p", path))
 	})
 
 	play.HandleFunc(pat.Get("/docs/:section"), func(w http.ResponseWriter, r *http.Request) {
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", pat.Param(r, "section")))
+		handlePlay(r.Context(), w, gopath, filepath.Join("docs", pat.Param(r, "section")))
 	})
 
 	play.HandleFunc(pat.Get("/"), func(w http.ResponseWriter, r *http.Request) {
-		handlePlay(r.Context(), w, docHost, gopath, filepath.Join("docs", "authors"))
+		handlePlay(r.Context(), w, gopath, filepath.Join("docs", "authors"))
 	})
 
 	play.HandleFunc(pat.Post("/generate"), func(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +240,7 @@ func main() {
 		defer r.Body.Close()
 		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev", "p"), sqlcbin, r.Body)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println("error", err)
 			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
 			return
 		}
@@ -220,14 +249,14 @@ func main() {
 		enc.Encode(resp)
 	})
 
-	fs := http.FileServer(http.Dir("static"))
+	fs := http.FileServer(http.Dir(filepath.Join("static")))
 	srv := http.NewServeMux()
 	srv.Handle("/static/", http.StripPrefix("/static", fs))
 	srv.Handle("/", play)
 
 	r := mux.NewRouter()
 	r.Host(trimPort(playHost)).Handler(srv)
-	r.Host(trimPort(docHost)).Handler(proxy)
 
+	log.Println("starting...")
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
