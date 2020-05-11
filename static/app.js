@@ -71,7 +71,7 @@ window.onload = function() {
           a.classList.add("selected");
         };
 
-        if (i === 0) {
+        if (file.name.endsWith(".sql.go")) {
           a.classList.add("selected");
           codeView.swapDoc(doc);
         }
