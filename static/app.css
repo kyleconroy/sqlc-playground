@@ -22,7 +22,7 @@ ul {
   grid-area: sql-tabs;
 }
 
-#query, #godoc {
+.pane {
   background-color: white;
   overflow: scroll;
   height: 50vh;
@@ -115,10 +115,9 @@ ul.tabs li a.selected {
   ul.tabs li a.selected {
     background-color: rgb(32, 39, 43);
   }
-  #query, #godoc {
+  .pane {
     background-color: rgb(32, 39, 43);
     scrollbar-color: #6e7880 rgb(49, 57, 62);
-  }
   }
   ul.tabs li a {
     background-color: black;
