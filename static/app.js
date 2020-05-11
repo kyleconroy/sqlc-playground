@@ -13,7 +13,7 @@ window.onload = function() {
     matchBrackets : true,
     autofocus: true, 
     theme: theme,
-    viewportMargin: Infinity,
+    // viewportMargin: Infinity,
   });
 
   let codeView = CodeMirror.fromTextArea(document.getElementById('go'), {
@@ -24,7 +24,7 @@ window.onload = function() {
     matchBrackets : true,
     readOnly: true,
     theme: theme,
-    viewportMargin: Infinity,
+    // viewportMargin: Infinity,
   });
 
   let godoc = document.getElementById('godoc');
