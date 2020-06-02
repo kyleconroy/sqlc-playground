@@ -2,6 +2,12 @@ body {
   background-color: rgb(221, 221, 221);
 }
 
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+}
+
 section {
   display: grid;
   grid-template-columns: 1fr;
@@ -13,14 +19,19 @@ section {
                        "code";
 }
 
-textarea {
-  display: none;
+nav {
+  grid-area: buttons;
+
 }
 
-ul {
-  list-style-type: none;
-  margin: 0;
-  padding: 0;
+ul.menu {
+  display: flex;
+  align-items: center;
+  height: 50px;
+}
+
+textarea {
+  display: none;
 }
 
 #sqlt {
