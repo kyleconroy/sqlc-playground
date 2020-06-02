@@ -26,12 +26,14 @@
         <pre class="err" id="stderr">{{ .Stderr }}</pre>
       </div>
       <ul class="tabs" id="sqlt">
+        <li><span>Input</span></li>
         <li><a class="selected" href="#">query.sql</a></li>
       </ul>
       <div class="pane" id="query">
         <textarea id="sql" name="sql">{{ .SQL }}</textarea>
       </div>
       <ul class="tabs" id="codet">
+        <li><span>Output</span></li>
       </ul>
       <div class="pane" id="godoc">
         <textarea id="go" name="go"></textarea>

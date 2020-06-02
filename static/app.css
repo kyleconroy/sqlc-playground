@@ -21,17 +21,14 @@ section {
 
 nav {
   grid-area: buttons;
-
 }
 
 ul.menu {
   display: flex;
-  align-items: center;
   height: 50px;
-}
-
-textarea {
-  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
 }
 
 #sqlt {
@@ -60,6 +57,13 @@ ul.tabs {
 ul.tabs li {
   display: inline-block;
   margin-left: 5px;
+}
+
+ul.tabs li span {
+  display: block;
+  padding: 10px;
+  font-family: monospace;
+  text-transform: uppercase;
 }
 
 ul.tabs li a {
@@ -93,10 +97,6 @@ ul.tabs li a.selected {
 
 .err {
   color: #900;
-}
-
-.hidden {
-  display: none;
 }
 
 .CodeMirror {

@@ -49,6 +49,13 @@ window.onload = function() {
         tabs.firstChild.remove();
       }
 
+      // TODO: Don't remove the first child of the tabs
+      let li = document.createElement("li");
+      let span = document.createElement("span");
+      span.innerText = 'Output';
+      li.appendChild(span);
+      tabs.appendChild(li);
+
       // Create documents for each
       for (let i = 0; i < data.files.length; i++) {
         const file = data.files[i];
