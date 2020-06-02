@@ -12,6 +12,10 @@ section {
                        "code";
 }
 
+textarea {
+  display: none;
+}
+
 ul {
   list-style-type: none;
   margin: 0;
@@ -62,19 +66,20 @@ ul.tabs li a.selected {
   grid-area: code;
 }
 
-#errors {
+.errors {
   height: 50vh;
   background: #ececec;
   grid-area: code;
+  z-index: 100;
 }
 
-#errors > pre {
+.errors > pre {
   margin: 14px;
   font-size: 1.25em;
   line-height: 1.4;
 }
 
-#stderr {
+.err {
   color: #900;
 }
 
@@ -98,7 +103,7 @@ ul.tabs li a.selected {
     height: 100%;
   }
 
-  #errors {
+  .errors {
     height: 100%;
   }
 
@@ -115,10 +120,10 @@ ul.tabs li a.selected {
   ul.tabs li a.selected {
     background-color: rgb(32, 39, 43);
   }
-  #errors {
+  .errors {
     background: rgb(61, 67, 70);
   }
-  #stderr {
+  .err {
     color: black;
   }
   .pane {

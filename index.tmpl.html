@@ -11,9 +11,13 @@
   </head>
   <body>
     <section>
-      <div id="errors" class="{{if .Stderr}}{{else}}hidden{{end}}">
+      <noscript class="errors">
         <pre>sqlc generate failed.</pre>
-        <pre id="stderr">{{ .Stderr }}</pre>
+        <pre class="err">The sqlc playground requires JavaScript.</pre>
+      </noscript>
+      <div id="errors" class="errors {{if .Stderr}}{{else}}hidden{{end}}">
+        <pre>sqlc generate failed.</pre>
+        <pre class="err" id="stderr">{{ .Stderr }}</pre>
       </div>
       <ul class="tabs" id="sqlt">
         <li><a class="selected" href="#">query.sql</a></li>

@@ -257,6 +257,6 @@ func main() {
 	r := mux.NewRouter()
 	r.Host(trimPort(playHost)).Handler(srv)
 
-	log.Println("starting...")
+	log.Printf("starting on :%s...\n", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
