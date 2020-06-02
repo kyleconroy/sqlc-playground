@@ -13,8 +13,7 @@
     <section>
       <nav>
         <ul class="menu">
-          <li><a href="https://play.sqlc.dev">play.sqlc.dev</a></li>
-          <li><form><input type="submit" value="Generate"></input></form></li>
+          <li><a id="home" href="https://play.sqlc.dev">play.sqlc.dev</a></li>
         </ul>
       </nav>
       <noscript class="errors">
@@ -30,13 +29,13 @@
         <li><a class="selected" href="#">query.sql</a></li>
       </ul>
       <div class="pane" id="query">
-        <textarea id="sql" name="sql">{{ .SQL }}</textarea>
+        <textarea class="hidden" id="sql" name="sql">{{ .SQL }}</textarea>
       </div>
       <ul class="tabs" id="codet">
         <li><span>Output</span></li>
       </ul>
       <div class="pane" id="godoc">
-        <textarea id="go" name="go"></textarea>
+        <textarea class="hidden" id="go" name="go"></textarea>
       </div>
     </section>
     <script type="application/json" id="response">{{.Response}}</script>
