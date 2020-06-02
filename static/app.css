@@ -31,6 +31,10 @@ ul.menu {
   padding: 0 10px;
 }
 
+.hidden {
+  display: none;
+}
+
 #sqlt {
   grid-area: sql-tabs;
 }
@@ -47,6 +51,16 @@ ul.menu {
 
 #codet {
   grid-area: code-tabs;
+}
+
+#home {
+  font-size: 24px;
+  font-weight: bold;
+  color: #000;
+}
+
+#home:visited {
+  color: #000;
 }
 
 ul.tabs {
@@ -128,6 +142,9 @@ ul.tabs li a.selected {
 @media (prefers-color-scheme: dark) {
   body {
     background-color: rgb(20, 20, 20);
+    color: white;
+  }
+  #home, #home:visited {
     color: white;
   }
   ul.tabs li a.selected {

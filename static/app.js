@@ -5,7 +5,8 @@ window.onload = function() {
     theme = "github-dark";
   }
 
-  let sqlEditor = CodeMirror.fromTextArea(document.getElementById('sql'), {
+  const sql = document.getElementById('sql');
+  let sqlEditor = CodeMirror.fromTextArea(sql, {
     mode: 'text/x-pgsql',
     indentWithTabs: true,
     smartIndent: true,
@@ -15,8 +16,10 @@ window.onload = function() {
     theme: theme,
     // viewportMargin: Infinity,
   });
+  sql.classList.remove("hidden");
 
-  let codeView = CodeMirror.fromTextArea(document.getElementById('go'), {
+  const go = document.getElementById('go');
+  let codeView = CodeMirror.fromTextArea(go, {
     mode: 'text/x-go',
     indentWithTabs: true,
     smartIndent: true,
@@ -26,6 +29,7 @@ window.onload = function() {
     theme: theme,
     // viewportMargin: Infinity,
   });
+  go.classList.remove("hidden");
 
   let godoc = document.getElementById('godoc');
   let errors = document.getElementById('errors');
