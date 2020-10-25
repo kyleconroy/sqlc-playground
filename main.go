@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"goji.io"
@@ -28,6 +29,7 @@ const confJSON = `{
   "packages": [
     {
       "path": "db",
+      "engine": "postgresql",
       "schema": "query.sql",
       "queries": "query.sql"
     }
@@ -37,12 +39,14 @@ const confJSON = `{
 var tmpl *template.Template
 
 type Request struct {
-	Query string `json:"query"`
+	Query  string `json:"query"`
+	Config string `json:"config"`
 }
 
 type File struct {
-	Name     string `json:"name"`
-	Contents string `json:"contents"`
+	Name        string `json:"name"`
+	Contents    string `json:"contents"`
+	ContentType string `json:"contentType"`
 }
 
 type Response struct {
@@ -60,7 +64,7 @@ func trimPort(hostport string) string {
 	return host
 }
 
-func buildResponse(dir string) (*Response, error) {
+func buildOutput(dir string) (*Response, error) {
 	elog := filepath.Join(dir, "out.log")
 	if _, err := os.Stat(elog); err == nil {
 		blob, err := ioutil.ReadFile(elog)
@@ -72,6 +76,7 @@ func buildResponse(dir string) (*Response, error) {
 		}
 	}
 	resp := Response{}
+	// TODO: Change to walk
 	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
 	if err != nil {
 		return nil, err
@@ -82,8 +87,29 @@ func buildResponse(dir string) (*Response, error) {
 			return nil, fmt.Errorf("%s: %w", file.Name(), err)
 		}
 		resp.Files = append(resp.Files, File{
-			Name:     filepath.Join("db", file.Name()),
-			Contents: string(contents),
+			Name:        filepath.Join("db", file.Name()),
+			Contents:    string(contents),
+			ContentType: "text/x-go",
+		})
+	}
+	return &resp, nil
+}
+
+func buildInput(dir string) (*Response, error) {
+	files := []string{"query.sql", "sqlc.json", "sqlc.yaml"}
+	resp := Response{}
+	for _, file := range files {
+		if _, err := os.Stat(filepath.Join(dir, file)); os.IsNotExist(err) {
+			continue
+		}
+		contents, err := ioutil.ReadFile(filepath.Join(dir, file))
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", file, err)
+		}
+		resp.Files = append(resp.Files, File{
+			Name:        file,
+			Contents:    string(contents),
+			ContentType: fmt.Sprintf("text/x-%s", strings.ReplaceAll(filepath.Ext(file), ".", "")),
 		})
 	}
 	return &resp, nil
@@ -109,8 +135,13 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	// Create the directory
 	os.MkdirAll(dir, 0777)
 
+	cfg := req.Config
+	if cfg == "" {
+		cfg = confJSON
+	}
+
 	// Write the configuration file
-	if err := ioutil.WriteFile(conf, []byte(confJSON), 0644); err != nil {
+	if err := ioutil.WriteFile(conf, []byte(cfg), 0644); err != nil {
 		return nil, err
 	}
 
@@ -133,7 +164,7 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	cmd.Dir = dir
 	cmd.Run()
 
-	resp, err := buildResponse(dir)
+	resp, err := buildOutput(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -142,40 +173,50 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 }
 
 type tmplCtx struct {
-	DocHost  string
-	SQL      string
-	Response template.JS
-	Stderr   string
-	Pkg      string
+	DocHost string
+	Input   template.JS
+	Output  template.JS
+	Stderr  string
+	Pkg     string
 }
 
 func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath string) {
 	dir := filepath.Join(gopath, "src", "sqlc.dev", pkgPath)
-	filename := filepath.Join(dir, "query.sql")
-	blob, err := ioutil.ReadFile(filename)
-	if err != nil {
-		http.Error(w, "Internal server error: ReadFile", http.StatusInternalServerError)
-		return
+	var input, output template.JS
+	{
+		resp, err := buildInput(dir)
+		if err != nil {
+			http.Error(w, "Internal server error: buildInput", http.StatusInternalServerError)
+			return
+		}
+		payload, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+		}
+		var out bytes.Buffer
+		json.HTMLEscape(&out, payload)
+		input = template.JS(out.String())
 	}
 
-	resp, err := buildResponse(dir)
-	if err != nil {
-		http.Error(w, "Internal server error: buildResponse", http.StatusInternalServerError)
-		return
+	{
+		resp, err := buildOutput(dir)
+		if err != nil {
+			http.Error(w, "Internal server error: buildOutput", http.StatusInternalServerError)
+			return
+		}
+		payload, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+		}
+		var out bytes.Buffer
+		json.HTMLEscape(&out, payload)
+		output = template.JS(out.String())
 	}
-
-	payload, err := json.Marshal(resp)
-	if err != nil {
-		http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
-	}
-
-	var out bytes.Buffer
-	json.HTMLEscape(&out, payload)
 
 	tctx := tmplCtx{
-		SQL:      string(blob),
-		Pkg:      pkgPath,
-		Response: template.JS(out.String()),
+		Pkg:    pkgPath,
+		Input:  input,
+		Output: output,
 	}
 
 	w.Header().Set("Content-Type", "text/html")

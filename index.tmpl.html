@@ -26,10 +26,9 @@
       </div>
       <ul class="tabs" id="sqlt">
         <li><span>Input</span></li>
-        <li><a class="selected" href="#">query.sql</a></li>
       </ul>
       <div class="pane" id="query">
-        <textarea class="hidden" id="sql" name="sql">{{ .SQL }}</textarea>
+        <textarea class="hidden" id="sql" name="sql"></textarea>
       </div>
       <ul class="tabs" id="codet">
         <li><span>Output</span></li>
@@ -38,7 +37,8 @@
         <textarea class="hidden" id="go" name="go"></textarea>
       </div>
     </section>
-    <script type="application/json" id="response">{{.Response}}</script>
+    <script type="application/json" id="input">{{.Input}}</script>
+    <script type="application/json" id="output">{{.Output}}</script>
     <script type="text/javascript" src="/static/codemirror.js"></script>
     <script type="text/javascript" src="/static/sql.js"></script>
     <script type="text/javascript" src="/static/go.js"></script>

@@ -35,6 +35,73 @@ window.onload = function() {
   let errors = document.getElementById('errors');
   let stderr = document.getElementById('stderr');
 
+  let sqlDoc, cfgDoc;
+
+  let loadInput = function(data) {
+    // Remove the existing tabs
+    let tabs = document.getElementById('sqlt');
+    while (tabs.firstChild) {
+      tabs.firstChild.remove();
+    }
+
+    // TODO: Don't remove the first child of the tabs
+    let li = document.createElement("li");
+    let span = document.createElement("span");
+    span.innerText = 'Input';
+    li.appendChild(span);
+    tabs.appendChild(li);
+
+    // Create documents for each
+    for (let i = 0; i < data.files.length; i++) {
+      const file = data.files[i];
+      const doc = CodeMirror.Doc(file.contents, file.contentType);
+
+      if (file.name === 'query.sql') {
+        sqlDoc = doc
+      }
+      if (file.name === 'sqlc.json' || file.name === 'sqlc.json') {
+        cfgDoc = doc
+      }
+
+      // Create a new tab for each document
+      const a = document.createElement("a");
+      a.innerText = file.name;
+      a.href = "#input=" + file.name;
+      a.onclick = function(e) {
+        e.preventDefault();
+        
+        if (a.classList.contains("selected")) {
+          return;
+        }
+        
+        // Set contents of the editor to the selected document
+        sqlEditor.swapDoc(doc);
+
+        // Unset the current selected tab
+        var selected = document.querySelector("#sqlt li a.selected");
+        if (selected) {
+          selected.classList.remove("selected");
+        }
+
+        // Set this tab as the selected one
+        a.classList.add("selected");
+      };
+
+      if (file.name.endsWith(".sql")) {
+        a.classList.add("selected");
+        sqlEditor.swapDoc(doc);
+      }
+
+      const li = document.createElement("li");
+      li.appendChild(a);
+      tabs.appendChild(li);
+    }
+
+    godoc.classList.remove('hidden');
+    errors.classList.add("hidden");
+  };
+
+
   let loadOutput = function(data) {
     if (data.sha) {
       history.replaceState(data, 'sqlc playground', "/p/"+data.sha)
@@ -63,7 +130,7 @@ window.onload = function() {
       // Create documents for each
       for (let i = 0; i < data.files.length; i++) {
         const file = data.files[i];
-        const doc = CodeMirror.Doc(file.contents, "text/x-go");
+        const doc = CodeMirror.Doc(file.contents, file.contentType);
 
         // Create a new tab for each document
         const a = document.createElement("a");
@@ -110,6 +177,9 @@ window.onload = function() {
     if (lastTimeout > 0) {
         clearTimeout(lastTimeout);
     }
+    if (!sqlDoc || !cfgDoc) {
+      return
+    }
     lastTimeout = setTimeout(function() {
       fetch('/generate', {
         method: 'POST',
@@ -117,7 +187,8 @@ window.onload = function() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          query: instance.getDoc().getValue(),
+          query: sqlDoc.getValue(),
+          config: cfgDoc.getValue(),
         }),
       })
       .then((response) => {
@@ -132,8 +203,13 @@ window.onload = function() {
     }, 500);
   });
 
-  let response = document.getElementById('response');
-  if (response) {
-    loadOutput(JSON.parse(response.innerText));
+  let input = document.getElementById('input');
+  if (input) {
+    loadInput(JSON.parse(input.innerText));
+  }
+
+  let output = document.getElementById('output');
+  if (output) {
+    loadOutput(JSON.parse(output.innerText));
   }
 };
