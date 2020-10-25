@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -23,6 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	"goji.io"
 	"goji.io/pat"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
@@ -352,6 +354,7 @@ func main() {
 	gopath := flag.Arg(0)
 	sqlcbin := flag.Arg(1)
 	bucketName := os.Getenv("CLOUD_BUCKET_NAME")
+	bucketAuth := os.Getenv("CLOUD_BUCKET_AUTH")
 
 	if gopath == "" {
 		log.Fatalf("arg: gopath is empty")
@@ -362,8 +365,21 @@ func main() {
 	if bucketName == "" {
 		log.Fatalf("env: CLOUD_BUCKET_NAME is empty")
 	}
+	if bucketAuth == "" {
+		log.Fatalf("env: CLOUD_BUCKET_AUTH is empty")
+	}
 
-	client, err := storage.NewClient(ctx, option.WithCredentialsFile("/Users/kyle/Downloads/sqlc-playground-32bcae44d539.json"))
+	jsonCreds, err := base64.StdEncoding.DecodeString(bucketAuth)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	creds, err := google.CredentialsFromJSON(ctx, jsonCreds, storage.ScopeReadWrite)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client, err := storage.NewClient(ctx, option.WithCredentials(creds)) // File("/Users/kyle/Downloads/sqlc-playground-32bcae44d539.json"))
 	if err != nil {
 		log.Fatalf("storage client: %s", err)
 	}
