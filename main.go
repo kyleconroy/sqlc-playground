@@ -131,7 +131,19 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 		return nil, err
 	}
 
-	sum := fmt.Sprintf("%x", sha256.Sum256(blob))
+	cfg := req.Config
+	if cfg == "" {
+		cfg = confJSON
+	}
+
+	if req.Query == "" {
+		return nil, fmt.Errorf("empty query")
+	}
+
+	h := sha256.New()
+	h.Write([]byte(cfg))
+	h.Write([]byte(req.Query))
+	sum := fmt.Sprintf("%x", h.Sum(nil))
 	dir := filepath.Join(base, sum)
 	conf := filepath.Join(dir, "sqlc.json")
 	query := filepath.Join(dir, "query.sql")
@@ -139,11 +151,6 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 
 	// Create the directory
 	os.MkdirAll(dir, 0777)
-
-	cfg := req.Config
-	if cfg == "" {
-		cfg = confJSON
-	}
 
 	// Write the configuration file
 	if err := ioutil.WriteFile(conf, []byte(cfg), 0644); err != nil {
