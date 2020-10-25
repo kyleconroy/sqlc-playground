@@ -76,27 +76,32 @@ func buildOutput(dir string) (*Response, error) {
 		}
 	}
 	resp := Response{}
-	// TODO: Change to walk
-	files, err := ioutil.ReadDir(filepath.Join(dir, "db"))
-	if err != nil {
-		return nil, err
-	}
-	for _, file := range files {
-		contents, err := ioutil.ReadFile(filepath.Join(dir, "db", file.Name()))
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", file.Name(), err)
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		contents, err := ioutil.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("%s: %w", info.Name(), err)
 		}
 		resp.Files = append(resp.Files, File{
-			Name:        filepath.Join("db", file.Name()),
+			Name:        strings.TrimPrefix(path, dir+"/"),
 			Contents:    string(contents),
 			ContentType: "text/x-go",
 		})
-	}
-	return &resp, nil
+		return nil
+	})
+	return &resp, err
 }
 
 func buildInput(dir string) (*Response, error) {
-	files := []string{"query.sql", "sqlc.json", "sqlc.yaml"}
+	files := []string{"query.sql", "sqlc.json"}
 	resp := Response{}
 	for _, file := range files {
 		if _, err := os.Stat(filepath.Join(dir, file)); os.IsNotExist(err) {
@@ -186,12 +191,14 @@ func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath stri
 	{
 		resp, err := buildInput(dir)
 		if err != nil {
-			http.Error(w, "Internal server error: buildInput", http.StatusInternalServerError)
+			log.Println("buildInput", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		payload, err := json.Marshal(resp)
 		if err != nil {
-			http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+			log.Println("buildInput/marshal", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 		var out bytes.Buffer
 		json.HTMLEscape(&out, payload)
@@ -201,12 +208,14 @@ func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath stri
 	{
 		resp, err := buildOutput(dir)
 		if err != nil {
-			http.Error(w, "Internal server error: buildOutput", http.StatusInternalServerError)
+			log.Println("buildOutput", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 		payload, err := json.Marshal(resp)
 		if err != nil {
-			http.Error(w, "Internal server error: Marshal", http.StatusInternalServerError)
+			log.Println("buildOutput/marshal", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
 		}
 		var out bytes.Buffer
 		json.HTMLEscape(&out, payload)
