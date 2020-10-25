@@ -19,9 +19,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"cloud.google.com/go/storage"
 	"github.com/gorilla/mux"
 	"goji.io"
 	"goji.io/pat"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 )
 
 const confJSON = `{
@@ -37,6 +40,7 @@ const confJSON = `{
 }`
 
 var tmpl *template.Template
+var bucket *storage.BucketHandle
 
 type Request struct {
 	Query  string `json:"query"`
@@ -120,7 +124,53 @@ func buildInput(dir string) (*Response, error) {
 	return &resp, nil
 }
 
-func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Response, error) {
+func save(base, dir string) {
+	if bucket == nil {
+		return
+	}
+	ctx := context.Background()
+
+	walker := func(path string, info os.FileInfo, err error) error {
+		fmt.Println(path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		rel, err := filepath.Rel(base, path)
+		if err != nil {
+			return err
+		}
+
+		obj := bucket.Object(rel)
+		w := obj.NewWriter(ctx)
+
+		_, err = io.Copy(w, file)
+		if err != nil {
+			return err
+		}
+
+		if err := w.Close(); err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	err := filepath.Walk(dir, walker)
+	if err != nil {
+		log.Printf("save err: %s\n", err)
+	}
+}
+
+func generate(ctx context.Context, gopath, base, sqlcbin string, rd io.Reader) (*Response, error) {
 	blob, err := ioutil.ReadAll(rd)
 	if err != nil {
 		return nil, err
@@ -176,6 +226,8 @@ func generate(ctx context.Context, base, sqlcbin string, rd io.Reader) (*Respons
 	cmd.Dir = dir
 	cmd.Run()
 
+	go save(gopath, dir)
+
 	resp, err := buildOutput(dir)
 	if err != nil {
 		return nil, err
@@ -192,8 +244,58 @@ type tmplCtx struct {
 	Pkg     string
 }
 
+func sync(ctx context.Context, gopath, pkgPath string) error {
+	dir := filepath.Join(gopath, "src", "sqlc.dev", pkgPath)
+	if !strings.HasPrefix(pkgPath, "p") {
+		return nil
+	}
+	if _, err := os.Stat(dir); err == nil {
+		return nil
+	}
+
+	fmt.Printf("%s doesn't exist, syning...\n", dir)
+
+	query := &storage.Query{Prefix: filepath.Join("src", "sqlc.dev", pkgPath)}
+	it := bucket.Objects(ctx, query)
+	for {
+		attrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		obj := bucket.Object(attrs.Name)
+		r, err := obj.NewReader(ctx)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
+		folder := filepath.Dir(filepath.Join(gopath, attrs.Name))
+		os.MkdirAll(folder, 0755)
+
+		f, err := os.Create(filepath.Join(gopath, attrs.Name))
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if _, err := io.Copy(f, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath string) {
 	dir := filepath.Join(gopath, "src", "sqlc.dev", pkgPath)
+
+	if err := sync(ctx, gopath, pkgPath); err != nil {
+		log.Printf("sync error: %s\n", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
 	var input, output template.JS
 	{
 		resp, err := buildInput(dir)
@@ -243,10 +345,13 @@ func handlePlay(ctx context.Context, w http.ResponseWriter, gopath, pkgPath stri
 }
 
 func main() {
-	flag.Parse()
+	var err error
+	ctx := context.Background()
 
+	flag.Parse()
 	gopath := flag.Arg(0)
 	sqlcbin := flag.Arg(1)
+	bucketName := os.Getenv("CLOUD_BUCKET_NAME")
 
 	if gopath == "" {
 		log.Fatalf("arg: gopath is empty")
@@ -254,6 +359,15 @@ func main() {
 	if sqlcbin == "" {
 		log.Fatalf("arg: sqlcbin is empty")
 	}
+	if bucketName == "" {
+		log.Fatalf("env: CLOUD_BUCKET_NAME is empty")
+	}
+
+	client, err := storage.NewClient(ctx, option.WithCredentialsFile("/Users/kyle/Downloads/sqlc-playground-32bcae44d539.json"))
+	if err != nil {
+		log.Fatalf("storage client: %s", err)
+	}
+	bucket = client.Bucket(bucketName)
 
 	tmpl = template.Must(template.ParseFiles("index.tmpl.html"))
 	port := os.Getenv("PORT")
@@ -295,7 +409,7 @@ func main() {
 		// 	return
 		// }
 		defer r.Body.Close()
-		resp, err := generate(r.Context(), filepath.Join(gopath, "src", "sqlc.dev", "p"), sqlcbin, r.Body)
+		resp, err := generate(r.Context(), gopath, filepath.Join(gopath, "src", "sqlc.dev", "p"), sqlcbin, r.Body)
 		if err != nil {
 			fmt.Println("error", err)
 			http.Error(w, `{"errored": true, "error": "500: Internal Server Error"}`, http.StatusInternalServerError)
