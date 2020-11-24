@@ -193,6 +193,7 @@ func generate(ctx context.Context, gopath, base, sqlcbin string, rd io.Reader) (
 	}
 
 	h := sha256.New()
+	h.Write([]byte("sqlc-1.6.0"))
 	h.Write([]byte(cfg))
 	h.Write([]byte(req.Query))
 	sum := fmt.Sprintf("%x", h.Sum(nil))
