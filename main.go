@@ -27,6 +27,8 @@ import (
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+
+	_ "github.com/kyleconroy/sqlc"
 )
 
 const confJSON = `{
