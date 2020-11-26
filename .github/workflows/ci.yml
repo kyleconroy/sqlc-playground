@@ -1,7 +1,12 @@
 name: ci
-on: [pull_request]
+on:
+  push:
+    branches:    
+      - 'master'
+  pull_request:
+    branches:    
+      - '!master'
 jobs:
-
   go:
     runs-on: ubuntu-latest
     steps:
@@ -10,7 +15,6 @@ jobs:
       with:
         go-version: '1.15'
     - run: go build ./...
-
   docker:
     runs-on: ubuntu-latest
     steps:
