@@ -1,0 +1,7 @@
+version: "3.8"
+services:
+  web:
+    build: .
+    env_file: docker.env
+    ports:
+      - "8086:8086"
