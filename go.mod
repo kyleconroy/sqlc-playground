@@ -10,5 +10,5 @@ require (
 	github.com/kyleconroy/sqlc v1.6.0
 	goji.io v2.0.2+incompatible
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
-	google.golang.org/api v0.37.0
+	google.golang.org/api v0.38.0
 )
