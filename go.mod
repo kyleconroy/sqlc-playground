@@ -9,6 +9,6 @@ require (
 	github.com/gorilla/mux v1.8.0
 	github.com/kyleconroy/sqlc v1.8.0
 	goji.io v2.0.2+incompatible
-	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
-	google.golang.org/api v0.48.0
+	golang.org/x/oauth2 v0.0.0-20210615190721-d04028783cf1
+	google.golang.org/api v0.49.0
 )
