@@ -5,7 +5,7 @@ module github.com/kyleconroy/sqlc-playground
 go 1.14
 
 require (
-	cloud.google.com/go/storage v1.15.0
+	cloud.google.com/go/storage v1.16.0
 	github.com/gorilla/mux v1.8.0
 	github.com/kyleconroy/sqlc v1.8.0
 	goji.io v2.0.2+incompatible
